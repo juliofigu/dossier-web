@@ -6,6 +6,11 @@
   <title>Dossier</title>
 
   <style>
+    html,
+    body {
+      overscroll-behavior-y: contain; /* bloquea el "tirar para actualizar" */
+    }
+
     body {
       margin: 0;
       background: #0f172a;
@@ -113,8 +118,13 @@
       }
     }
 
+    // SOLO redibuja si cambia el ANCHO de la pantalla (rotar el teléfono).
+    // Ignora los cambios de altura producidos por la barra del navegador.
+    let lastWidth = window.innerWidth;
     let resizeTimer;
     window.addEventListener("resize", () => {
+      if (window.innerWidth === lastWidth) return;
+      lastWidth = window.innerWidth;
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(renderAll, 400);
     });
