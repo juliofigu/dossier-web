@@ -6,29 +6,25 @@
   <title>Dossier</title>
 
   <style>
-    html,
-    body {
-      height: 100%;
-    }
-
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, sans-serif;
       background: #0f172a;
-      color: #e5e7eb;
-      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
     }
 
-    .viewer {
-      position: fixed;
-      inset: 0;
+    #pages {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0 60px;
     }
 
-    .viewer iframe {
-      width: 100%;
-      height: 100%;
-      border: 0;
+    canvas {
       background: white;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+      max-width: calc(100vw - 16px);
+      height: auto;
     }
 
     .download-button {
@@ -44,70 +40,86 @@
       font-size: 14px;
       font-weight: 600;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
-      transition: background 0.2s ease;
     }
 
-    .download-button:hover {
-      background: #15803d;
-    }
-
-    .fallback {
-      position: fixed;
-      left: 50%;
-      bottom: 14px;
-      transform: translateX(-50%);
-      z-index: 10;
-      margin: 0;
-      padding: 10px 14px;
-      border-radius: 12px;
-      background: rgba(17, 24, 39, 0.88);
-      font-size: 14px;
+    #status {
+      color: #e5e7eb;
       text-align: center;
-      max-width: calc(100vw - 28px);
+      padding: 60px 20px;
+      font-size: 15px;
     }
 
-    .fallback a {
+    #status a {
       color: #60a5fa;
-      font-weight: 600;
-      text-decoration: none;
-    }
-
-    .fallback a:hover {
-      text-decoration: underline;
-    }
-
-    @media (max-width: 600px) {
-      .download-button {
-        top: auto;
-        bottom: 70px;
-        right: 14px;
-      }
-
-      .fallback {
-        bottom: 14px;
-        font-size: 13px;
-      }
     }
   </style>
 </head>
 
 <body>
-  <a
-    class="download-button"
-    href="dossier.pdf"
-    download="dossier.pdf"
-    aria-label="Descargar dossier en PDF"
-  >
+  <a class="download-button" href="dossier.pdf" download="dossier.pdf">
     Descargar PDF
   </a>
 
-  <main class="viewer">
-    <iframe
-      src="dossier.pdf#view=FitH"
-      title="Dossier en PDF"
-      loading="eager"
-    ></iframe>
-  </main>
-  
+  <div id="status">Cargando dossier…</div>
+  <div id="pages"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    const PDF_URL = "dossier.pdf";
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+    const statusEl = document.getElementById("status");
+    const pagesEl = document.getElementById("pages");
+    let renderToken = 0;
+
+    async function renderAll() {
+      const token = ++renderToken;
+      pagesEl.innerHTML = "";
+      statusEl.style.display = "block";
+      statusEl.textContent = "Cargando dossier…";
+
+      try {
+        const pdf = await pdfjsLib.getDocument(PDF_URL).promise;
+        if (token !== renderToken) return;
+        statusEl.style.display = "none";
+
+        const maxWidth = Math.min(window.innerWidth - 16, 1000);
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          if (token !== renderToken) return;
+
+          const base = page.getViewport({ scale: 1 });
+          const scale = maxWidth / base.width;
+          const viewport = page.getViewport({ scale });
+
+          const ratio = window.devicePixelRatio || 1;
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.floor(viewport.width * ratio);
+          canvas.height = Math.floor(viewport.height * ratio);
+          canvas.style.width = Math.floor(viewport.width) + "px";
+
+          pagesEl.appendChild(canvas);
+
+          const ctx = canvas.getContext("2d");
+          ctx.scale(ratio, ratio);
+
+          await page.render({ canvasContext: ctx, viewport }).promise;
+        }
+      } catch (err) {
+        statusEl.innerHTML =
+          'No se pudo cargar el visor. <a href="dossier.pdf" target="_blank" rel="noopener">Abrir PDF</a> o <a href="dossier.pdf" download="dossier.pdf">descargarlo</a>.';
+      }
+    }
+
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(renderAll, 400);
+    });
+
+    renderAll();
+  </script>
 </body>
 </html>
